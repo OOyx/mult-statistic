@@ -1,0 +1,150 @@
+---
+title: "202322011053 第四章作业"
+author: "欧宇翔"
+date: "2023-11-31"
+output: 
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    math: katex
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 读取并查看数据集
+
+
+```{r cars}
+setwd("D:\\研一上\\应用多元统计")
+student.grade = read.csv("初中成绩.csv")
+student.grade = as.data.frame(student.grade)
+student.grade
+```
+
+## 数据预处理
+
+### 将所有列的类型转换为数值型
+
+```{r pressure, echo=TRUE}
+suppressWarnings({
+  for (col in names(student.grade)){
+  student.grade[[col]] = as.numeric(student.grade[[col]])
+}
+})
+```
+
+### 利用每一列的平均值填充空值
+
+```{r}
+for (col in names(student.grade)) {
+  if (any(is.na(student.grade[[col]]))) {  # 检查是否存在空值
+    avg = mean(student.grade[[col]], na.rm = TRUE)  # 计算平均值
+    student.grade[[col]][is.na(student.grade[[col]])] = avg  # 填充空值
+  }
+}
+
+```
+
+### 相关系数图展示
+
+观察结果可知，变量之间相关程度较高
+
+```{r}
+library(corrplot)
+corr = cor(student.grade)
+corrplot(corr, method="color", 
+         type="lower", 
+         order="hclust", 
+         tl.col="black",
+         tl.srt=0,
+         mar = c(0, 1, 0, 0))
+
+```
+
+## 主成分分析
+
+前3个主成分的方差累计达到了80%，因此利用主成分分析可以实现降维。
+
+```{r}
+pca = princomp(student.grade,cor=T)
+summary(pca,loadings=T)
+```
+
+### 碎石图
+
+```{r}
+screeplot(pca,type='l')
+```
+
+1. 查看各变量对第一主成分的贡献可知，各变量的权重相对较高且大致相等，表明第一主成分主要代表了该学生的综合成绩，同时外语成绩累计贡献率最高，其次是数学成绩，说明第一主成分对外语成绩赋予较高的权重，其次是数学成绩。
+
+2. 查看各变量对第二主成分的贡献可知，第二主成分主要衡量学生的语文和数学成绩。
+
+3. 查看各变量对第三主成分的贡献可知，第三主成分主要衡量学生的外语成绩。
+
+在先前利用PCA进行降维时有上述总结，以下利用因子分析法对该数据集进行分析。
+
+## 因子分析
+
+使用psych的fa函数
+
+使用fa.parallel确定因子分析中的因子数量，其与PCA中碎石图相同，说明我们可以使用主成分分析判断因子数量
+
+```{r}
+library(psych)
+fa.parallel(student.grade, fm = "ml", fa = "fa")
+```
+
+### 尽管该函数推荐因子数量为6，但此处确定因子数量为3，主要原因在于总共有三个科目，初步认为三个因子分别解释不同科目。
+
+进行因子分析时，通过旋转因子载荷矩阵来使得因子具有更好的解释性和可理解性，此处选用最大方差法旋转因子载荷矩阵
+
+```{r}
+fac_result = fa(corr, nfactors =3 , rotate = 'varimax', scores ='regression' )
+fa.diagram(fac_result,digits = 3)
+```
+
+### 因子载荷矩阵热力图
+
+绘制热力图可视化因子载荷矩阵，结果表明第一个因子与数学成绩相关，第二个因子与外语成绩相关，第三个因子与语文成绩相关
+
+```{r}
+library(pheatmap)
+loadings = data.frame(head(fac_result$loadings,12))
+colnames(loadings) = paste0("Factor", 1:ncol(loadings))
+suppressWarnings({
+  pheatmap(loadings,
+         display_numbers=T, border="white", 
+         fontsize_number=8,fontsize_col = 10,
+         fontsize_row = 10,)
+})
+```
+
+### 将因子载荷数量确定为4，再次对因子结果进行分析
+
+显然纳入第四个因子时，没有变量与其相关程度较高，因此最终可以确定最优因子载荷数量为3
+
+```{r}
+fac_result = fa(corr, nfactors =4 , rotate = 'varimax', scores ='regression' )
+loadings = data.frame(head(fac_result$loadings,12))
+colnames(loadings) = paste0("Factor", 1:ncol(loadings))
+suppressWarnings({
+  pheatmap(loadings,
+         display_numbers=T, border="white", 
+         fontsize_number=8,fontsize_col = 10,
+         fontsize_row = 10,)
+})
+```
+
+## 总结
+
+主成分分析和因子分析都是多变量数据降维方法。而主成分分析（PCA）旨在通过将原始变量转换为一组无关的主成分来解释和捕捉数据中的方差。它的目标是最大化解释变量之间的总方差，并找到最少数量的主成分来表示数据。因子分析（FA）旨在揭示潜在的隐藏因子，这些因子可以解释观察到的变量之间的协方差结构。它的目标是找到能够解释观测到的变量之间共同方差的最佳因子结构。
+
+由上述结果可以看出，使用因子分析对12个变量进行浓缩处理，浓缩为三个因子。
+
+因子与科目存在对应关系，其中数学成绩在F1因子上有较高的载荷，说明F1因子可以用来反映数学成绩，外语成绩在F2因子上有较高的载荷，说明F2因子可以用来反映外语成绩，语文成绩在F3因子上有较高的载荷，说明F3因子可以用来反映语文成绩。
+
+与主成分分析相比，因子分析显然可解释性程度更高。

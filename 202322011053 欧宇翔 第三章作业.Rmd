@@ -1,0 +1,175 @@
+---
+title: "202322011053 第三章作业"
+author: "欧宇翔"
+date: "2023-11-17"
+output: 
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    math: katex
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 第一题
+
+## 读取并查看数据集
+```{r}
+student = data.frame(
+X1=c(148,139,160,149,159,142,153,150,151,139,140,161,158,140,137,
+152,149,145,160,156,151,147,157,147,157,151,144,141,139,148),
+X2=c(41, 34, 49, 36, 45, 31, 43, 43, 42, 31, 29, 47, 49, 33, 31, 35, 47, 35,
+47, 44, 42, 38, 39, 30, 48, 36, 36, 30, 32, 38),
+X3=c(72, 71, 77, 67, 80, 66, 76, 77, 77, 68, 64, 78, 78, 67, 66, 73, 82, 70,
+74, 78, 73, 73, 68, 65, 80, 74, 68, 67, 68, 70),
+X4=c(78, 76, 86, 79, 86, 76, 83, 79, 80, 74, 74, 84, 83, 77, 73, 79, 79, 77,
+87, 85, 82, 78, 80, 75, 88, 80, 76, 76, 73, 78)
+)
+# 身高x1，体重x2，胸围x3、坐高x4
+colnames(student) = c("身高","体重","胸围","坐高")
+student
+```
+## 未标准化下的主成分分析
+
+```{r}
+student.pca = princomp(student) 
+summary(student.pca,loadings = TRUE)
+```
+
+## 标准化后的主成分分析
+
+```{r}
+student.std = scale(student)
+student.pca.std = princomp(student.std) 
+summary(student.pca.std,loadings = TRUE)
+```
+
+总结：
+
+在本例中，未标准化和标准化之间特征值差异很大，但方差累计贡献率没有较大差距。
+
+同时标准化后，在第一主成分中，身高的权重显著降低，正是由于原先数据集中身高数值较大，体重数值较小，标准化后的数据集可以消除变量之间的尺度差异，使得各个变量对主成分的贡献度更加均衡。
+
+标准化可以确保主成分分析更多地关注数据的变异性，而不是变量之间的平移差异。
+
+# 第二题
+
+## 读取并查看数据集
+
+```{r cars}
+setwd("D:\\研一上\\应用多元统计")
+student.grade = read.csv("初中成绩.csv")
+student.grade = as.data.frame(student.grade)
+student.grade
+```
+
+## 数据预处理
+
+### 查看每列的数据类型
+
+```{r pressure, echo=TRUE}
+column_classes = sapply(student.grade,class)
+column_classes
+```
+
+### 将所有列的类型转换为数值型
+
+```{r}
+suppressWarnings({
+  for (col in names(student.grade)){
+  student.grade[[col]] = as.numeric(student.grade[[col]])
+}
+})
+
+```
+
+### 利用每一列的平均值填充空值
+
+```{r}
+for (col in names(student.grade)) {
+  if (any(is.na(student.grade[[col]]))) {  # 检查是否存在空值
+    avg = mean(student.grade[[col]], na.rm = TRUE)  # 计算平均值
+    student.grade[[col]][is.na(student.grade[[col]])] = avg  # 填充空值
+  }
+}
+```
+
+### 再次检查是否存在缺失值
+
+```{r}
+missing_counts = colSums(is.na(student.grade))
+missing_counts
+
+empty_counts = colSums(student.grade == "")
+empty_counts
+```
+
+## 主成分分析
+
+### 使用FactorMinR函数包，利用里面的PCA函数，其中scale.unit = TRUE表示进行数据标准化
+
+```{r}
+suppressWarnings({
+  library(FactoMineR)
+  library(factoextra)
+})
+data.pca = PCA(student.grade, scale.unit = TRUE, graph = FALSE)
+```
+
+### 输出summary结果
+
+```{r}
+summary(data.pca)
+```
+
+## 变量分析
+
+### 绘制碎石图
+
+```{r}
+fviz_eig(data.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+由Summary和碎石图可以看到前三个主成分累积方差达到81.752%，因此考虑选择前三个主成分实现降维。
+
+### 可视化展示变量对各主成分的代表质量
+
+```{r}
+library(corrplot)
+var = get_pca_var(data.pca)
+# is.corr表示输入的矩阵不是相关系数矩阵
+corrplot(var$cos2, is.corr=FALSE)
+```
+
+### 查看各变量对第一主成分的贡献
+
+```{r}
+fviz_contrib(data.pca, choice = "var", axes = 1, top = 12)
+```
+
+### 查看各变量对第二主成分的贡献
+
+```{r}
+fviz_contrib(data.pca, choice = "var", axes = 2, top = 12)
+```
+
+### 查看各变量对第三主成分的贡献
+
+```{r}
+fviz_contrib(data.pca, choice = "var", axes = 3, top = 12)
+```
+
+总结：
+
+1. 首先数据存在缺失值，由于样本量较大，故利用平均值进行填充
+
+2. 实现PCA降维，观察碎石图可知，前三个主成分的累计贡献率超过80%，故选择前三个主成分实现降维。
+
+3. 查看各变量对第一主成分的贡献可知，各变量的权重相对较高且大致相等，表明第一主成分主要代表了该学生的综合成绩，同时外语成绩累计贡献率最高，其次是数学成绩，说明第一主成分对外语成绩赋予较高的权重，其次是数学成绩。
+
+4. 查看各变量对第二主成分的贡献可知，第二主成分主要衡量学生的语文和数学成绩。
+
+5. 查看各变量对第三主成分的贡献可知，第三主成分主要衡量学生的外语成绩。
